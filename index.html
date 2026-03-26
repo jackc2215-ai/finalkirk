@@ -917,6 +917,8 @@ function startMission(mid){
   document.getElementById('mTooltip').style.display='none';
   currentMission=mid;
   _pendingMid=mid;
+  // Tell partner to load the same mission
+  if(MP.connected) _send({type:'mission_start', mid});
   showBriefing(mid);
 }
 
@@ -1006,6 +1008,7 @@ function reportToHigher(){
 }
 
 function deployMission(){stopSpeaking();
+  if(MP.connected) _send({type:'mission_deploy', mid:_pendingMid||currentMission});
   if(window._bfInterval){ clearInterval(window._bfInterval); window._bfInterval=null; }
   const mid=_pendingMid||currentMission;
   const titles={ambush:"MISSION: AMBUSH // DEVIL'S ROAD",hostage:'MISSION: DEFEND // FIREBASE KILO',contact:'MISSION: REACT TO CONTACT'};
@@ -4202,6 +4205,23 @@ function _onMsg(msg){
   if(msg.type==='partner_left'){
     MP.connected=false; MP.remotePlayers={};
     if(GAME) showDlg({s:'COMMS',t:'Squadmate disconnected.'});
+    return;
+  }
+  if(msg.type==='mission_start'){
+    // Partner selected a mission — pull us in automatically
+    currentMission=msg.mid; _pendingMid=msg.mid;
+    if(MAP.loopActive){ MAP.loopActive=false; document.removeEventListener('keydown',mapKD); document.removeEventListener('keyup',mapKU); }
+    showDlg({s:'COMMS',t:'Squadmate is deploying — pulling you in!'});
+    setTimeout(()=>deployMission(), 1200);
+    return;
+  }
+  if(msg.type==='mission_deploy'){
+    // Partner hit deploy — skip briefing and launch immediately
+    if(_pendingMid!==msg.mid){ currentMission=msg.mid; _pendingMid=msg.mid; }
+    if(document.getElementById('briefingScreen').classList.contains('active')||
+       document.getElementById('mapScreen').classList.contains('active')){
+      deployMission();
+    }
     return;
   }
   if(msg.type==='state'){
